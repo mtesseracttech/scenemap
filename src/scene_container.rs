@@ -7,24 +7,20 @@ use std::net::Shutdown::Read;
 use std::path::Iter;
 
 #[derive(Debug)]
-pub struct AssociatedNode{
+pub struct SceneNode{
+    parent : Option<u64>,
+    children: Vec<u64>,
     id : u64,
     name: String
 }
 
-#[derive(Debug)]
-pub struct SceneNode{
-    parent : Option<AssociatedNode>,
-    children: Vec<AssociatedNode>,
-    id : u64
-}
-
 impl SceneNode{
-    pub fn new(container: &mut SceneContainer) -> u64{
-        container.add_node(&mut Rc::new(RefCell::new(SceneNode{
+    pub fn new(container: &mut SceneContainer, name : Option<&str>) -> u64{
+        container.add_node(Rc::new(RefCell::new(SceneNode{
             parent: None,
             children: vec![],
-            id: 0
+            id: 0,
+            name: if name.is_some() {name.unwrap().to_string()} else {"n/a".to_string()}
         })))
     }
 
@@ -34,6 +30,29 @@ impl SceneNode{
 
     pub fn get_id(&self) -> u64{
         self.id
+    }
+
+    pub fn get_name(&self) -> &str{
+        self.name.as_str()
+    }
+
+    pub fn add_child(&mut self, node_id : u64){
+        match self.children.iter().find(|node| **node == node_id) {
+            None => {
+                self.children.push(node_id)
+            },
+            Some(_) => (),
+        }
+    }
+
+    pub fn remove_child(&mut self, node_id : u64){
+        let position = self.children.iter().position(|node| *node == node_id);
+        match position {
+            None => (),
+            Some(index) => {
+                self.children.remove(index);
+            },
+        }
     }
 }
 
@@ -55,11 +74,7 @@ impl SceneContainer{
         self.members.get(&node_id)
     }
 
-    pub fn get_node_mut(&mut self, node_id: u64) -> Option<&mut Rc<RefCell<SceneNode>>>{
-        self.members.get_mut(&node_id)
-    }
-
-    pub fn add_node(&mut self, node: &mut Rc<RefCell<SceneNode>>) -> u64{
+    pub fn add_node(&mut self, node: Rc<RefCell<SceneNode>>) -> u64{
         let node_id = self.cur_id;
         node.as_ref().borrow_mut().set_id(node_id);
         self.members.insert(self.cur_id, node.to_owned());
@@ -67,7 +82,11 @@ impl SceneContainer{
         node_id
     }
 
-    pub fn len(&self) -> usize{
+    pub fn remove_node(&mut self, node_id : u64){
+        self.members.remove(&node_id);
+    }
+
+    pub fn node_count(&self) -> usize{
         self.members.len()
     }
 }
