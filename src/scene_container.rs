@@ -12,20 +12,32 @@ pub struct SceneNode {
 }
 
 impl SceneNode {
-    pub fn create_new(container: Rc<RefCell<SceneContainer>>, name: Option<&str>) -> u64 {
-        (*container)
-            .borrow_mut()
-            .add_node(Rc::new(RefCell::new(SceneNode {
-                container: container.clone(),
-                parent: None,
-                children: Vec::new(),
-                id: 0,
-                name: if name.is_some() {
-                    name.unwrap().to_string()
-                } else {
-                    "n/a".to_string()
-                },
-            })))
+    pub fn create_new(
+        container: Rc<RefCell<SceneContainer>>,
+        name: Option<&str>,
+        parent: Option<u64>,
+    ) -> u64 {
+        let mut container_deref = (*container).borrow_mut();
+        let new_node_id = container_deref.add_node(Rc::new(RefCell::new(SceneNode {
+            container: container.clone(),
+            parent,
+            children: Vec::new(),
+            id: 0,
+            name: if name.is_some() {
+                name.unwrap().to_string()
+            } else {
+                "n/a".to_string()
+            },
+        })));
+
+        if parent.is_some() {
+            let parent_id = parent.unwrap();
+            let parent_node = container_deref.get_node(parent_id).unwrap();
+            let mut parent_node = (*parent_node).borrow_mut();
+            parent_node.add_child(new_node_id);
+        }
+
+        new_node_id
     }
 
     pub(in crate::scene_container) fn set_id(&mut self, id: u64) {
@@ -40,11 +52,17 @@ impl SceneNode {
         self.name.as_str()
     }
 
-    pub fn add_child(&mut self, node_id: u64) {
-        match self.children.iter().find(|node| **node == node_id) {
-            None => self.children.push(node_id),
-            Some(_) => (),
+    pub fn add_child_id(&mut self, node_id: u64) {
+        if (*self.container).borrow_mut().has_node(node_id) {
+            match self.children.iter().find(|node| **node == node_id) {
+                None => self.children.push(node_id),
+                Some(_) => (),
+            }
         }
+    }
+
+    pub fn add_child(&mut self, child_node: Rc<RefCell<SceneNode>>) {
+        self.add_child_id((*child_node).borrow().get_id());
     }
 
     pub fn remove_child(&mut self, node_id: u64) {
@@ -61,10 +79,46 @@ impl SceneNode {
         self.children.len()
     }
 
+    //Gets a child from a given index, if the child was not available, it returns None
     pub fn get_child(&self, index: usize) -> Option<Rc<RefCell<SceneNode>>> {
         (*self.container)
             .borrow_mut()
             .get_node(self.children[index])
+    }
+
+    //Returns a list of child id's guaraneed to be available for usage from the data structure
+    pub fn get_children_ids(&mut self) -> Vec<u64> {
+        self.children
+            .iter()
+            .take_while(|c| (*self.container).borrow().has_node(**c))
+            .cloned()
+            .collect()
+    }
+
+    //Returns a list of children guaranteed to not be deleted from the data structure
+    pub fn get_children(&self) -> Vec<Rc<RefCell<SceneNode>>> {
+        self.children
+            .iter()
+            .take_while(|c| (*self.container).borrow().has_node(**c))
+            .flat_map(|c| (*self.container).borrow_mut().get_node(*c))
+            .collect()
+    }
+
+    pub fn get_parent(&self) -> Option<Rc<RefCell<SceneNode>>> {
+        match self.parent {
+            None => None,
+            Some(parent_id) => (*self.container).borrow_mut().get_node(parent_id),
+        }
+    }
+
+    pub fn set_parent_id(&mut self, parent_id: u64) {
+        if (*self.container).borrow_mut().has_node(parent_id) {
+            self.parent = Some(parent_id);
+        }
+    }
+
+    pub fn get_parent_id(&self) -> Option<u64> {
+        self.parent
     }
 }
 
@@ -92,8 +146,7 @@ impl SceneContainer {
         }))
     }
 
-    pub fn get_node(&mut self, node_id: u64) -> Option<Rc<RefCell<SceneNode>>> {
-        //self.members.get(&node_id)
+    pub fn get_node(&self, node_id: u64) -> Option<Rc<RefCell<SceneNode>>> {
         Some(self.members.get(&node_id)?.clone())
     }
 
@@ -107,6 +160,10 @@ impl SceneContainer {
 
     pub fn remove_node(&mut self, node_id: u64) {
         self.members.remove(&node_id);
+    }
+
+    pub fn has_node(&self, node_id: u64) -> bool {
+        self.members.contains_key(&node_id)
     }
 
     pub fn node_count(&self) -> usize {

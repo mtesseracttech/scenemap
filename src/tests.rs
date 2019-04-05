@@ -1,18 +1,18 @@
 use crate::scene_container::SceneNode;
 use crate::SceneContainer;
 use core::borrow::BorrowMut;
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::rc::Rc;
 
 #[test]
 fn add_get_node() {
     let container = SceneContainer::new();
 
-    let foo = SceneNode::create_new(container.clone(), Some("foo"));
-    SceneNode::create_new(container.clone(), None);
-    let bar = SceneNode::create_new(container.clone(), Some("bar"));
-    SceneNode::create_new(container.clone(), None);
-    let baz = SceneNode::create_new(container.clone(), Some("baz"));
+    let foo = SceneNode::create_new(container.clone(), Some("foo"), None);
+    SceneNode::create_new(container.clone(), None, None);
+    let bar = SceneNode::create_new(container.clone(), Some("bar"), None);
+    SceneNode::create_new(container.clone(), None, None);
+    let baz = SceneNode::create_new(container.clone(), Some("baz"), None);
 
     assert_eq!(
         foo,
@@ -47,11 +47,11 @@ fn add_get_node() {
 fn add_rem_node() {
     let container = SceneContainer::new();
 
-    let foo = SceneNode::create_new(container.clone(), Some("foo"));
+    let foo = SceneNode::create_new(container.clone(), Some("foo"), None);
     assert_eq!(1, container.borrow().node_count());
-    let bar = SceneNode::create_new(container.clone(), Some("bar"));
+    let bar = SceneNode::create_new(container.clone(), Some("bar"), None);
     assert_eq!(2, container.borrow().node_count());
-    let baz = SceneNode::create_new(container.clone(), Some("baz"));
+    let baz = SceneNode::create_new(container.clone(), Some("baz"), None);
     assert_eq!(3, container.borrow().node_count());
     (*container).borrow_mut().remove_node(foo);
     //container.borrow_mut().remove_node(foo);
@@ -75,19 +75,33 @@ fn add_rem_node() {
 fn add_child() {
     let container = SceneContainer::new();
 
-    let foo = SceneNode::create_new(container.clone(), Some("foo"));
-    let bar = SceneNode::create_new(container.clone(), Some("bar"));
+    let foo_id = SceneNode::create_new(container.clone(), Some("foo"), None);
+    let bar_id = SceneNode::create_new(container.clone(), Some("bar"), None);
+    let foo = (*container).borrow_mut().get_node(foo_id).unwrap();
+    (*foo).borrow_mut().add_child(bar_id);
 
-    let foo_node = (*container).borrow_mut().get_node(foo).unwrap();
-    (*foo_node).borrow_mut().add_child(bar);
-
-    assert_eq!(1, (*foo_node).borrow_mut().get_child_count());
+    assert_eq!(1, (*foo).borrow().get_child_count());
     assert_eq!(
         "bar",
-        (*(*foo_node).borrow_mut().get_child(0).unwrap())
+        (*(*foo).borrow_mut().get_child(0).unwrap())
             .borrow_mut()
             .get_name()
     );
 
-    println!("{:?}", foo_node);
+    println!("{:?}", foo);
+    let baz_id = SceneNode::create_new(container.clone(), Some("baz"), None);
+
+    (*foo).borrow_mut().add_child(baz_id);
+
+    assert_eq!(2, (*foo).borrow().get_child_count());
+    assert_eq!(vec![bar_id, baz_id], (*foo).borrow_mut().get_children_ids());
+    println!("{:?}", foo);
+}
+
+#[test]
+fn remove_child() {
+    let container = SceneContainer::new();
+
+    let foo = SceneNode::create_new(container.clone(), Some("foo"), None);
+    let bar = SceneNode::create_new(container.clone(), Some("bar"), None);
 }
